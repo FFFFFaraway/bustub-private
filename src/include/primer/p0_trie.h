@@ -133,6 +133,17 @@ class TrieNode {
     return &children_[key_char];
   }
 
+  void UpdateChildNode(char key_char, std::unique_ptr<TrieNode> &&child) {
+    if (!HasChild(key_char)) {
+      return;
+    }
+    if (child->key_char_ != key_char) {
+      return;
+    }
+    children_[key_char] = std::move(child);
+    child = nullptr;
+  }
+
   /**
    * TODO(P0): Add implementation
    *
@@ -326,7 +337,7 @@ class Trie {
       latch_.WUnlock();
       return false;
     }
-    cur->InsertChildNode(last_ch, std::make_unique<TrieNodeWithValue<T>>(std::move(*child), value));
+    cur->UpdateChildNode(last_ch, std::make_unique<TrieNodeWithValue<T>>(std::move(*child), value));
     latch_.WUnlock();
     return true;
   }
