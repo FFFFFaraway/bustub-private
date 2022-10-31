@@ -315,49 +315,47 @@ class Trie {
 
     latch_.WLock();
 
-    TrieNode *cur = root_.get();
+    auto cur = &root_;
     for (u_int64_t i = 0; i < key.length() - 1; i++) {
-      auto child_ptr = cur->GetChildNode(key[i]);
-      if (child_ptr == nullptr) {
-        child_ptr = cur->InsertChildNode(key[i], std::make_unique<TrieNode>(key[i]));
+      auto child = (*cur)->GetChildNode(key[i]);
+      if (child == nullptr) {
+        child = (*cur)->InsertChildNode(key[i], std::make_unique<TrieNode>(key[i]));
       }
-      auto child = child_ptr->get();
       cur = child;
     }
 
     auto last_ch = key[key.length() - 1];
-    auto child_ptr = cur->GetChildNode(last_ch);
-    if (child_ptr == nullptr) {
-      cur->InsertChildNode(last_ch, std::make_unique<TrieNodeWithValue<T>>(last_ch, value));
+    auto child = (*cur)->GetChildNode(last_ch);
+    if (child == nullptr) {
+      (*cur)->InsertChildNode(last_ch, std::make_unique<TrieNodeWithValue<T>>(last_ch, value));
       latch_.WUnlock();
       return true;
     }
-    auto child = child_ptr->get();
-    if (child->IsEndNode()) {
+    if ((*child)->IsEndNode()) {
       latch_.WUnlock();
       return false;
     }
-    cur->UpdateChildNode(last_ch, std::make_unique<TrieNodeWithValue<T>>(std::move(*child), value));
+    //    (*cur)->UpdateChildNode(last_ch, std::make_unique<TrieNodeWithValue<T>>(std::move(*(*child).get()), value));
+    //    (*cur)->UpdateChildNode(last_ch, std::make_unique<TrieNodeWithValue<T>>(std::move(*child->get()), value));
+    (*cur)->UpdateChildNode(last_ch, std::make_unique<TrieNodeWithValue<T>>(std::move(**child), value));
     latch_.WUnlock();
     return true;
   }
 
   // return whether self (THE NODE not the tag) need to be removed
-  bool RemoveRecur(TrieNode *root, const std::string &key, u_int64_t i, bool *suc) {
+  bool RemoveRecur(std::unique_ptr<TrieNode> *root, const std::string &key, u_int64_t i, bool *suc) {
     if (i == key.length()) {
       *suc = true;
-      root->SetEndNode(false);
-      return !root->HasChildren();
+      (*root)->SetEndNode(false);
+      return !(*root)->HasChildren();
     }
-    auto child_ptr = root->GetChildNode(key[i]);
-    if (child_ptr == nullptr) {
+    auto child = (*root)->GetChildNode(key[i]);
+    if (child == nullptr) {
       return false;
     }
-    auto child = child_ptr->get();
-    auto need_remove = RemoveRecur(child, key, i + 1, suc);
-    if (need_remove) {
-      root->RemoveChildNode(key[i]);
-      return !root->HasChildren() && !root->IsEndNode();
+    if (RemoveRecur(child, key, i + 1, suc)) {
+      (*root)->RemoveChildNode(key[i]);
+      return !(*root)->HasChildren() && !(*root)->IsEndNode();
     }
     return false;
   }
@@ -385,7 +383,7 @@ class Trie {
     }
     bool suc = false;
     latch_.WLock();
-    RemoveRecur(root_.get(), key, 0, &suc);
+    RemoveRecur(&root_, key, 0, &suc);
     latch_.WUnlock();
     return suc;
   }
@@ -417,24 +415,23 @@ class Trie {
 
     latch_.RLock();
 
-    TrieNode *cur = root_.get();
+    auto cur = &root_;
 
     for (auto ch : key) {
-      auto child_ptr = cur->GetChildNode(ch);
-      if (child_ptr == nullptr) {
+      auto child = (*cur)->GetChildNode(ch);
+      if (child == nullptr) {
         latch_.RUnlock();
         return {};
       }
-      auto child = child_ptr->get();
       cur = child;
     }
 
-    if (!cur->IsEndNode()) {
+    if (!(*cur)->IsEndNode()) {
       latch_.RUnlock();
       return {};
     }
 
-    auto ptr = dynamic_cast<TrieNodeWithValue<T> *>(cur);
+    auto ptr = dynamic_cast<TrieNodeWithValue<T> *>((*cur).get());
     if (ptr == nullptr) {
       latch_.RUnlock();
       return {};
