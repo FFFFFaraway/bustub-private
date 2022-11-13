@@ -85,23 +85,31 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
   std::scoped_lock<std::mutex> lock(latch_);
   while (true) {
     auto idx = IndexOf(key);
-    if (dir_[idx]->Insert(key, value)) {
+    auto bucket = dir_[idx];
+    if (bucket->Insert(key, value)) {
       return;
     }
-    auto tmp = dir_[idx];
-    if (tmp->GetDepth() == global_depth_) {
+    auto d = bucket->GetDepth();
+    if (d == global_depth_) {
       global_depth_++;
       auto len = dir_.size();
       for (size_t i = 0; i < len; i++) {
         dir_.push_back(dir_[i]);
       }
     }
-    auto d = tmp->GetDepth();
-    auto pair = (idx + (1 << d)) % (1 << (d + 1));
-    tmp->IncrementDepth();
-    dir_[idx] = std::shared_ptr<Bucket>(new Bucket(bucket_size_, tmp->GetDepth()));
-    dir_[pair] = std::shared_ptr<Bucket>(new Bucket(bucket_size_, tmp->GetDepth()));
-    RedistributeBucket(tmp);
+    auto a = std::shared_ptr<Bucket>(new Bucket(bucket_size_, d + 1));
+    auto b = std::shared_ptr<Bucket>(new Bucket(bucket_size_, d + 1));
+    for (size_t i = 0; i < (1 << global_depth_); i++) {
+      if ((i & ((1 << d) - 1)) == (idx & ((1 << d) - 1))) {
+        if (i & (1 << d)) {
+          dir_[i] = a;
+        } else {
+          dir_[i] = b;
+        }
+      }
+    }
+    num_buckets_++;
+    RedistributeBucket(bucket);
   }
 }
 
