@@ -14,6 +14,7 @@
 
 #include <limits>
 #include <list>
+#include <memory>
 #include <mutex>  // NOLINT
 #include <unordered_map>
 #include <vector>
@@ -137,7 +138,7 @@ class LRUKReplacer {
  private:
   struct LRUEntry {
     std::list<time_t> t_;
-    [[maybe_unused]] bool evictable_;
+    bool evictable_;
   };
   time_t current_timestamp_{0};
   size_t curr_size_{0};

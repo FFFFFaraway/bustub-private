@@ -119,6 +119,7 @@ auto ExtendibleHashTable<K, V>::RedistributeBucket(std::shared_ptr<Bucket> bucke
     auto idx = IndexOf(item.first);
     dir_[idx]->Insert(item.first, item.second);
   }
+  bucket.reset();
 }
 
 //===--------------------------------------------------------------------===//

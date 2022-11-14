@@ -38,7 +38,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
            data_[i]->t_.back() < data_[select]->t_.back()) ||
           (data_[select]->t_.size() == k_ && data_[i]->t_.size() < k_) ||
           (data_[select]->t_.size() < k_ && data_[i]->t_.size() < k_ &&
-           data_[i]->t_.front() < data_[select]->t_.front())) {
+           data_[i]->t_.back() < data_[select]->t_.back())) {
         select = i;
       }
     }
@@ -65,11 +65,11 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   std::scoped_lock<std::mutex> lock(latch_);
   BUSTUB_ASSERT(size_t(frame_id) < replacer_size_, "frame id is invalid");
-  if (!data_[frame_id]->evictable_ && set_evictable) {
+  if (data_[frame_id] && !data_[frame_id]->evictable_ && set_evictable) {
     curr_size_++;
     data_[frame_id]->evictable_ = set_evictable;
   }
-  if (data_[frame_id]->evictable_ && !set_evictable) {
+  if (data_[frame_id] && data_[frame_id]->evictable_ && !set_evictable) {
     curr_size_--;
     data_[frame_id]->evictable_ = set_evictable;
   }
