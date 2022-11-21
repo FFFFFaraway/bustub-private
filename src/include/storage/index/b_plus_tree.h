@@ -54,6 +54,33 @@ class BPlusTree {
   // return the value associated with a given key
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
 
+  // expose for test purpose
+  auto FindLeafPage(const KeyType &key, bool leftMost = false) -> Page *;
+
+  void StartNewTree(const KeyType &key, const ValueType &value);
+
+  auto InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction = nullptr) -> bool;
+
+  void InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node,
+                        Transaction *transaction = nullptr);
+
+
+  auto Split(LeafPage *node) -> LeafPage *;
+
+  auto Split(InternalPage *node, const page_id_t page_id) -> InternalPage *;
+
+  template <typename N>
+  auto CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr) -> bool;
+
+  template <typename N>
+  auto Coalesce(N **neighbor_node, N **node, BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent,
+                int index, Transaction *transaction = nullptr) -> bool;
+
+  template <typename N>
+  void Redistribute(N *neighbor_node, N *node, int index);
+
+  auto AdjustRoot(BPlusTreePage *node) -> bool;
+
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;
 
