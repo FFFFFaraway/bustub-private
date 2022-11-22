@@ -39,7 +39,10 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   void Init(page_id_t page_id, page_id_t parent_id = INVALID_PAGE_ID, int max_size = INTERNAL_PAGE_SIZE);
 
   auto KeyAt(int index) const -> KeyType;
+  auto ItemAt(int index) const -> MappingType;
   void SetKeyAt(int index, const KeyType &key);
+  auto GetX() const -> ValueType;
+  void SetX(const ValueType &value);
   auto ValueIndex(const ValueType &value) const -> int;
   auto ValueAt(int index) const -> ValueType;
 
@@ -50,7 +53,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto RemoveAndReturnOnlyChild() -> ValueType;
 
   // Split and Merge utility methods
-  void MoveAllTo(BPlusTreeInternalPage *recipient, const KeyType &middle_key, BufferPoolManager *buffer_pool_manager);
+  void MoveAllTo(BPlusTreeInternalPage *recipient, BufferPoolManager *buffer_pool_manager);
   void MoveHalfTo(BPlusTreeInternalPage *recipient, BufferPoolManager *buffer_pool_manager);
   void MoveFirstToEndOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
                         BufferPoolManager *buffer_pool_manager);
@@ -58,6 +61,10 @@ class BPlusTreeInternalPage : public BPlusTreePage {
                          BufferPoolManager *buffer_pool_manager);
   auto InsertAndGetMid(const KeyType &key, const ValueType &value, const KeyComparator &comparator) -> MappingType;
   void Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator);
+  void PushFront(MappingType item);
+  void PushBack(MappingType item);
+  auto PopFront() -> MappingType;
+  auto PopBack() -> MappingType;
   void SetValueAt(int index, const ValueType &value);
 
  private:

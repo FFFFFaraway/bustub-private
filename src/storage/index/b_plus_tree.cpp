@@ -198,6 +198,14 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   if (IsEmpty()) {
     return;
   }
+  auto leaf = reinterpret_cast<LeafPage *>(FindLeafPage(key, false));
+  auto cur_size = leaf->RemoveAndDeleteRecord(key, comparator_);
+  if (leaf->IsRootPage()) {
+    return;
+  }
+  if (cur_size < leaf->GetMinSize()) {
+    CoalesceOrRedistribute(leaf, transaction);
+  }
 }
 
 /*
@@ -208,9 +216,165 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
  * deletion happens
  */
 INDEX_TEMPLATE_ARGUMENTS
-template <typename N>
-auto BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) -> bool {
-  return false;
+auto BPLUSTREE_TYPE::CoalesceOrRedistribute(LeafPage *node, Transaction *transaction) -> bool {
+  auto parent_page_id = node->GetParentPageId();
+  auto parent_page = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent_page_id));
+  auto idx = parent_page->ValueIndex(node->GetPageId());
+  // use left as sibling
+  auto sibling_idx = idx - 1;
+  // no left, then use right
+  if (idx == 0) {
+    sibling_idx = 1;
+  }
+  auto sibling_is_left = idx != 0;
+  auto sibling_page_id = parent_page->ValueAt(sibling_idx);
+  auto sibling_page = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(sibling_page_id));
+  // redistribute
+  if (sibling_page->GetSize() + node->GetSize() >= sibling_page->GetMaxSize()) {
+    if (sibling_is_left) {
+      sibling_page->MoveLastToFrontOf(node);
+      parent_page->SetKeyAt(idx, node->KeyAt(0));
+    } else {
+      sibling_page->MoveFirstToEndOf(node);
+      parent_page->SetKeyAt(sibling_idx, sibling_page->KeyAt(0));
+    }
+    buffer_pool_manager_->UnpinPage(node->GetPageId(), true);
+    buffer_pool_manager_->UnpinPage(sibling_page_id, true);
+    buffer_pool_manager_->UnpinPage(parent_page->GetPageId(), true);
+    return false;
+  }
+  // merge
+  if (sibling_is_left) {
+    node->MoveAllToEndOf(sibling_page);
+    parent_page->Remove(idx);
+    sibling_page->SetNextPageId(node->GetNextPageId());
+  } else {
+    sibling_page->MoveAllToEndOf(node);
+    parent_page->Remove(sibling_idx);
+    node->SetNextPageId(sibling_page->GetNextPageId());
+  }
+  buffer_pool_manager_->UnpinPage(node->GetPageId(), true);
+  buffer_pool_manager_->UnpinPage(sibling_page_id, true);
+  //  if (sibling_is_left) {
+  //        BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(node->GetPageId()), "can't delete page");
+  //  } else {
+  //        BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(sibling_page->GetPageId()), "can't delete page");
+  //  }
+
+  if (parent_page->IsRootPage()) {
+    if (parent_page->GetSize() > 1) {
+      buffer_pool_manager_->UnpinPage(parent_page_id, true);
+      return false;
+    }
+    // root has only one child, set this child as new root
+    auto child = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(parent_page->ValueAt(0)));
+    child->SetParentPageId(parent_page->GetParentPageId());
+    root_page_id_ = child->GetPageId();
+    UpdateRootPageId();
+    buffer_pool_manager_->UnpinPage(child->GetPageId(), true);
+    buffer_pool_manager_->UnpinPage(parent_page_id, true);
+    return false;
+  }
+  if (parent_page->GetSize() <= parent_page->GetMinSize()) {
+    CoalesceOrRedistribute(parent_page, transaction);
+  }
+  return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::CoalesceOrRedistribute(InternalPage *node, Transaction *transaction) -> bool {
+  auto parent_page_id = node->GetParentPageId();
+  auto parent_page = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent_page_id));
+  auto idx = parent_page->ValueIndex(node->GetPageId());
+  auto sibling_idx = idx - 1;
+  if (idx == 0) {
+    sibling_idx = 1;
+  }
+  auto sibling_is_left = idx != 0;
+  auto sibling_page_id = parent_page->ValueAt(sibling_idx);
+  auto sibling_page = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(sibling_page_id));
+  // redistribute
+  if (sibling_page->GetSize() + node->GetSize() > sibling_page->GetMaxSize()) {
+    if (sibling_is_left) {
+      auto split_entry = parent_page->ItemAt(idx);
+      node->PushFront(std::make_pair(split_entry.first, node->GetX()));
+      auto sibling_back = sibling_page->PopBack();
+      node->SetX(sibling_back.second);
+
+      auto trans_page = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(sibling_back.second));
+      trans_page->SetParentPageId(node->GetPageId());
+      buffer_pool_manager_->UnpinPage(sibling_back.second, true);
+
+      parent_page->SetKeyAt(idx, sibling_back.first);
+      parent_page->SetValueAt(idx, node->GetPageId());
+    } else {
+      auto split_entry = parent_page->ItemAt(sibling_idx);
+      node->PushBack(std::make_pair(split_entry.first, sibling_page->GetX()));
+
+      auto trans_page = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(sibling_page->GetX()));
+      trans_page->SetParentPageId(node->GetPageId());
+      buffer_pool_manager_->UnpinPage(sibling_page->GetX(), true);
+
+      auto sibling_front = sibling_page->PopFront();
+      sibling_page->SetX(sibling_front.second);
+
+      parent_page->SetKeyAt(sibling_idx, sibling_front.first);
+      parent_page->SetValueAt(sibling_idx, sibling_page->GetPageId());
+    }
+    buffer_pool_manager_->UnpinPage(node->GetPageId(), true);
+    buffer_pool_manager_->UnpinPage(sibling_page_id, true);
+    buffer_pool_manager_->UnpinPage(parent_page->GetPageId(), true);
+    return false;
+  }
+  // merge
+  if (sibling_is_left) {
+    auto split_entry = parent_page->ItemAt(idx);
+    sibling_page->PushBack(std::make_pair(split_entry.first, node->GetX()));
+
+    auto trans_page = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(node->GetX()));
+    trans_page->SetParentPageId(sibling_page->GetPageId());
+    buffer_pool_manager_->UnpinPage(node->GetX(), true);
+
+    node->MoveAllTo(sibling_page, buffer_pool_manager_);
+    parent_page->Remove(idx);
+  } else {
+    auto split_entry = parent_page->ItemAt(sibling_idx);
+    node->PushBack(std::make_pair(split_entry.first, sibling_page->GetX()));
+
+    auto trans_page = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(sibling_page->GetX()));
+    trans_page->SetParentPageId(node->GetPageId());
+    buffer_pool_manager_->UnpinPage(sibling_page->GetX(), true);
+
+    sibling_page->MoveAllTo(node, buffer_pool_manager_);
+    parent_page->Remove(sibling_idx);
+  }
+  buffer_pool_manager_->UnpinPage(node->GetPageId(), true);
+  buffer_pool_manager_->UnpinPage(sibling_page_id, true);
+
+  //  if (sibling_is_left) {
+  //    BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(node->GetPageId()), "can't delete page");
+  //  } else {
+  //    BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(sibling_page->GetPageId()), "can't delete page");
+  //  }
+
+  if (parent_page->IsRootPage()) {
+    if (parent_page->GetSize() > 1) {
+      buffer_pool_manager_->UnpinPage(parent_page_id, true);
+      return false;
+    }
+    // root has only one child, set this child as new root
+    auto child = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent_page->GetX()));
+    child->SetParentPageId(parent_page->GetParentPageId());
+    root_page_id_ = child->GetPageId();
+    UpdateRootPageId();
+    buffer_pool_manager_->UnpinPage(child->GetPageId(), true);
+    buffer_pool_manager_->UnpinPage(parent_page_id, true);
+    return false;
+  }
+  if (parent_page->GetSize() <= parent_page->GetMinSize()) {
+    CoalesceOrRedistribute(parent_page, transaction);
+  }
+  return true;
 }
 
 /*
@@ -243,8 +407,18 @@ auto BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
  * @param   node               input from method coalesceOrRedistribute()
  */
 INDEX_TEMPLATE_ARGUMENTS
-template <typename N>
-void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {}
+void BPLUSTREE_TYPE::Redistribute(LeafPage *neighbor_node, LeafPage *node, bool sibling_is_left) {
+  if (sibling_is_left) {
+    neighbor_node->MoveLastToFrontOf(node);
+  } else {
+    neighbor_node->MoveFirstToEndOf(node);
+  }
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void BPLUSTREE_TYPE::Redistribute(InternalPage *neighbor_node, InternalPage *node, InternalPage *parent,
+                                  bool sibling_is_left) {}
+
 /*
  * Update root page if necessary
  * NOTE: size of root page can be less than min size and this method is only

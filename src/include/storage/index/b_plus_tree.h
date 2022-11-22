@@ -64,20 +64,21 @@ class BPlusTree {
   void InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node,
                         Transaction *transaction = nullptr);
 
-
   auto Split(LeafPage *node) -> LeafPage *;
 
-  auto Split(InternalPage *node, const page_id_t page_id) -> InternalPage *;
+  auto Split(InternalPage *node, page_id_t page_id) -> InternalPage *;
 
-  template <typename N>
-  auto CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr) -> bool;
+  auto CoalesceOrRedistribute(LeafPage *node, Transaction *transaction = nullptr) -> bool;
+
+  auto CoalesceOrRedistribute(InternalPage *node, Transaction *transaction) -> bool;
 
   template <typename N>
   auto Coalesce(N **neighbor_node, N **node, BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent,
                 int index, Transaction *transaction = nullptr) -> bool;
 
-  template <typename N>
-  void Redistribute(N *neighbor_node, N *node, int index);
+  void Redistribute(LeafPage *neighbor_node, LeafPage *node, bool sibling_is_left);
+
+  void Redistribute(InternalPage *neighbor_node, InternalPage *node, InternalPage *parent, bool sibling_is_left);
 
   auto AdjustRoot(BPlusTreePage *node) -> bool;
 

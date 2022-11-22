@@ -41,7 +41,16 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const -> KeyType { return array_[index].first; }
 
 INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ItemAt(int index) const -> MappingType { return array_[index]; }
+
+INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) { array_[index].first = key; }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetX() const -> ValueType { return array_[0].second; }
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetX(const ValueType &value) { array_[0].second = value; }
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType &value) { array_[index].second = value; }
@@ -81,9 +90,8 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyCompara
   for (int i = 1; i < GetSize(); i++) {
     if (comparator(key, array_[i].first) < 0) {
       return res;
-    } else {
-      res = array_[i].second;
     }
+    res = array_[i].second;
   }
   return res;
 }
@@ -139,7 +147,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Insert(const KeyType &key, const ValueType 
                                             const KeyComparator &comparator) {
   // find the first bigger one
   int gt = GetSize();
-  for (int i = 0; i < GetSize(); i++) {
+  for (int i = 1; i < GetSize(); i++) {
     if (comparator(array_[i].first, key) == 0) {
       return;
     }
@@ -153,6 +161,38 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Insert(const KeyType &key, const ValueType 
   }
   array_[gt] = std::make_pair(key, value);
   IncreaseSize(1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PushFront(MappingType item) {
+  // start from index 1
+  for (int i = GetSize(); i >= 2; i--) {
+    *(array_ + i) = *(array_ + i - 1);
+  }
+  *(array_ + 1) = item;
+  IncreaseSize(1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PushBack(MappingType item) {
+  array_[GetSize()] = item;
+  IncreaseSize(1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopFront() -> MappingType {
+  auto res = *(array_ + 1);
+  for (int i = 1; i < GetSize() - 1; i++) {
+    *(array_ + i) = *(array_ + i + 1);
+  }
+  IncreaseSize(-1);
+  return res;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopBack() -> MappingType {
+  IncreaseSize(-1);
+  return array_[GetSize()];
 }
 
 /*****************************************************************************
@@ -238,8 +278,21 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() -> ValueType { r
  * pages that are moved to the recipient
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
-                                               BufferPoolManager *buffer_pool_manager) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient,
+                                               BufferPoolManager *buffer_pool_manager) {
+  auto n = GetSize();
+  // ignore the first element X
+  // we need to append to recipient, which start at: recipient->array_ + recipient->GetSize()
+  // we count i start from 1, so first element should put at: recipient->array_ + i + recipient->GetSize() - 1
+  for (int i = 1; i < n; i++) {
+    *(recipient->array_ + i + recipient->GetSize() - 1) = *(array_ + i);
+    auto trans_page = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager->FetchPage((array_ + i)->second));
+    trans_page->SetParentPageId(recipient->GetPageId());
+    buffer_pool_manager->UnpinPage((array_ + i)->second, true);
+  }
+  IncreaseSize(-(n - 1));
+  recipient->IncreaseSize(n - 1);
+}
 
 /*****************************************************************************
  * REDISTRIBUTE
