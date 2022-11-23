@@ -68,17 +68,20 @@ class BPlusTree {
 
   auto Split(InternalPage *node, page_id_t page_id) -> InternalPage *;
 
-  auto CoalesceOrRedistribute(LeafPage *node, Transaction *transaction = nullptr) -> bool;
-
-  auto CoalesceOrRedistribute(InternalPage *node, Transaction *transaction) -> bool;
-
   template <typename N>
-  auto Coalesce(N **neighbor_node, N **node, BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent,
-                int index, Transaction *transaction = nullptr) -> bool;
+  auto CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr) -> bool;
 
-  void Redistribute(LeafPage *neighbor_node, LeafPage *node, bool sibling_is_left);
+  void Coalesce(LeafPage *node, LeafPage *sibling_page, InternalPage *parent_page, int idx,
+                int sibling_idx, bool sibling_is_left);
 
-  void Redistribute(InternalPage *neighbor_node, InternalPage *node, InternalPage *parent, bool sibling_is_left);
+  void Coalesce(InternalPage *node, InternalPage *sibling_page, InternalPage *parent_page, int idx,
+                int sibling_idx, bool sibling_is_left);
+
+  void Redistribute(LeafPage *node, LeafPage *sibling_page, InternalPage *parent_page, int idx, int sibling_idx,
+                    bool sibling_is_left);
+
+  void Redistribute(InternalPage *node, InternalPage *sibling_page, InternalPage *parent_page, int idx, int sibling_idx,
+                    bool sibling_is_left);
 
   auto AdjustRoot(BPlusTreePage *node) -> bool;
 
