@@ -201,10 +201,13 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   auto leaf = reinterpret_cast<LeafPage *>(FindLeafPage(key, false));
   auto cur_size = leaf->RemoveAndDeleteRecord(key, comparator_);
   if (leaf->IsRootPage()) {
+    buffer_pool_manager_->UnpinPage(leaf->GetPageId(), true);
     return;
   }
   if (cur_size < leaf->GetMinSize()) {
     CoalesceOrRedistribute(leaf, transaction);
+  } else {
+    buffer_pool_manager_->UnpinPage(leaf->GetPageId(), true);
   }
 }
 
@@ -255,11 +258,11 @@ auto BPLUSTREE_TYPE::CoalesceOrRedistribute(LeafPage *node, Transaction *transac
   }
   buffer_pool_manager_->UnpinPage(node->GetPageId(), true);
   buffer_pool_manager_->UnpinPage(sibling_page_id, true);
-  //  if (sibling_is_left) {
-  //        BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(node->GetPageId()), "can't delete page");
-  //  } else {
-  //        BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(sibling_page->GetPageId()), "can't delete page");
-  //  }
+  if (sibling_is_left) {
+    BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(node->GetPageId()), "can't delete page");
+  } else {
+    BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(sibling_page->GetPageId()), "can't delete page");
+  }
 
   if (parent_page->IsRootPage()) {
     if (parent_page->GetSize() > 1) {
@@ -277,6 +280,8 @@ auto BPLUSTREE_TYPE::CoalesceOrRedistribute(LeafPage *node, Transaction *transac
   }
   if (parent_page->GetSize() <= parent_page->GetMinSize()) {
     CoalesceOrRedistribute(parent_page, transaction);
+  } else {
+    buffer_pool_manager_->UnpinPage(parent_page->GetPageId(), true);
   }
   return true;
 }
@@ -351,11 +356,11 @@ auto BPLUSTREE_TYPE::CoalesceOrRedistribute(InternalPage *node, Transaction *tra
   buffer_pool_manager_->UnpinPage(node->GetPageId(), true);
   buffer_pool_manager_->UnpinPage(sibling_page_id, true);
 
-  //  if (sibling_is_left) {
-  //    BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(node->GetPageId()), "can't delete page");
-  //  } else {
-  //    BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(sibling_page->GetPageId()), "can't delete page");
-  //  }
+  if (sibling_is_left) {
+    BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(node->GetPageId()), "can't delete page");
+  } else {
+    BUSTUB_ASSERT(buffer_pool_manager_->DeletePage(sibling_page->GetPageId()), "can't delete page");
+  }
 
   if (parent_page->IsRootPage()) {
     if (parent_page->GetSize() > 1) {
@@ -373,6 +378,8 @@ auto BPLUSTREE_TYPE::CoalesceOrRedistribute(InternalPage *node, Transaction *tra
   }
   if (parent_page->GetSize() <= parent_page->GetMinSize()) {
     CoalesceOrRedistribute(parent_page, transaction);
+  } else {
+    buffer_pool_manager_->UnpinPage(parent_page->GetPageId(), true);
   }
   return true;
 }
