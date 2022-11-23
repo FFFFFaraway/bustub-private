@@ -136,9 +136,9 @@ TEST(BPlusTreeTests, InsertTest3) {
   GenericComparator<8> comparator(key_schema.get());
 
   auto *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(30, disk_manager);
   // create b+ tree
-  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 2, 3);
   GenericKey<8> index_key;
   RID rid;
   // create transaction
@@ -150,7 +150,10 @@ TEST(BPlusTreeTests, InsertTest3) {
   ASSERT_EQ(page_id, HEADER_PAGE_ID);
   (void)header_page;
 
-  std::vector<int64_t> keys = {5, 4, 3, 2, 1};
+  std::vector<int64_t> keys;
+  for (int i = 100; i >= 1; i--) {
+    keys.push_back(i);
+  }
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
@@ -181,7 +184,7 @@ TEST(BPlusTreeTests, InsertTest3) {
 
   EXPECT_EQ(current_key, keys.size() + 1);
 
-  start_key = 3;
+  start_key = 33;
   current_key = start_key;
   index_key.SetFromInteger(start_key);
   for (auto iterator = tree.Begin(index_key); iterator != tree.End(); ++iterator) {
