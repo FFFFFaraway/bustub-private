@@ -55,7 +55,8 @@ class BPlusTree {
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
 
   // expose for test purpose
-  auto FindLeafPage(const KeyType &key, bool leftMost = false) -> Page *;
+  auto FindLeafPage(const KeyType &key, std::vector<Page *> &locked, bool leftMost = false, bool isWrite = false)
+      -> Page *;
 
   void StartNewTree(const KeyType &key, const ValueType &value);
 
@@ -69,13 +70,13 @@ class BPlusTree {
   auto Split(InternalPage *node, page_id_t page_id) -> InternalPage *;
 
   template <typename N>
-  auto CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr) -> bool;
+  auto CoalesceOrRedistribute(N *node, std::vector<Page *>&need_delete, Transaction *transaction = nullptr) -> bool;
 
-  void Coalesce(LeafPage *node, LeafPage *sibling_page, InternalPage *parent_page, int idx,
-                int sibling_idx, bool sibling_is_left);
+  void Coalesce(LeafPage *node, LeafPage *sibling_page, InternalPage *parent_page, int idx, int sibling_idx,
+                bool sibling_is_left);
 
-  void Coalesce(InternalPage *node, InternalPage *sibling_page, InternalPage *parent_page, int idx,
-                int sibling_idx, bool sibling_is_left);
+  void Coalesce(InternalPage *node, InternalPage *sibling_page, InternalPage *parent_page, int idx, int sibling_idx,
+                bool sibling_is_left);
 
   void Redistribute(LeafPage *node, LeafPage *sibling_page, InternalPage *parent_page, int idx, int sibling_idx,
                     bool sibling_is_left);

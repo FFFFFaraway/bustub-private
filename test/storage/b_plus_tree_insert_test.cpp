@@ -83,7 +83,7 @@ TEST(BPlusTreeTests, InsertTest2) {
   auto header_page = bpm->NewPage(&page_id);
   (void)header_page;
 
-  std::vector<int64_t> keys = {6, 4, 3, 1, 4, 5, 9, 7, 8, 10, 15, 14, 17, 12, 11, 19, 20, 26, 24, 23, 22, 21};
+  std::vector<int64_t> keys = {6, 4, 3, 1, 5, 9, 7, 8, 10, 15, 14, 17, 12, 11, 19, 20, 26, 24, 23, 22, 21};
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
@@ -130,7 +130,7 @@ TEST(BPlusTreeTests, InsertTest2) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, InsertTest3) {
+TEST(BPlusTreeTests2, InsertTest3) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
