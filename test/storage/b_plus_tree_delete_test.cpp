@@ -26,7 +26,7 @@ TEST(BPlusTreeTests, DeleteTest1) {
   GenericComparator<8> comparator(key_schema.get());
 
   auto *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManagerInstance(30, disk_manager);
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(25, disk_manager);
   // create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 2, 3);
   GenericKey<8> index_key;
@@ -40,10 +40,34 @@ TEST(BPlusTreeTests, DeleteTest1) {
   (void)header_page;
 
   std::vector<int64_t> keys;
-  for (int i = 1; i < 100; i++) {
+  for (int i = 1; i < 1000; i++) {
     keys.push_back(i);
   }
 
+  for (auto key : keys) {
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+  }
+  for (auto key : keys) {
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Remove(index_key, transaction);
+  }
+  for (auto key : keys) {
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+  }
+  for (auto key : keys) {
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Remove(index_key, transaction);
+  }
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
@@ -63,37 +87,36 @@ TEST(BPlusTreeTests, DeleteTest1) {
   }
 
   std::vector<int64_t> remove_keys;
-  for (int i = 1; i < 100; i++) {
-    if (i % 3 == 0 || i % 2 == 0) {
-      remove_keys.push_back(i);
-    }
+  for (int i = 1; i < 1000; i++) {
+    remove_keys.push_back(i);
   }
   for (auto key : remove_keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);
   }
 
-  tree.Draw(bpm, "after.dot");
+  EXPECT_EQ(tree.IsEmpty(), true);
 
   int64_t size = 0;
-  bool is_present;
 
-  for (auto key : keys) {
-    rids.clear();
-    index_key.SetFromInteger(key);
-    is_present = tree.GetValue(index_key, &rids);
-
-    if (!is_present) {
-      EXPECT_NE(std::find(remove_keys.begin(), remove_keys.end(), key), remove_keys.end());
-    } else {
-      EXPECT_EQ(rids.size(), 1);
-      EXPECT_EQ(rids[0].GetPageId(), 0);
-      EXPECT_EQ(rids[0].GetSlotNum(), key);
-      size = size + 1;
-    }
+  for (auto it = tree.Begin(); it != tree.End(); ++it) {
+    size += 1;
   }
 
-  //  EXPECT_EQ(size, 3);
+  EXPECT_EQ(size, 0);
+
+  for (auto key : keys) {
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+  }
+
+  for (auto it = tree.Begin(); it != tree.End(); ++it) {
+    size += 1;
+  }
+
+  EXPECT_EQ(size, 999);
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
@@ -109,7 +132,7 @@ TEST(BPlusTreeTests2, DeleteTest2) {
   GenericComparator<8> comparator(key_schema.get());
 
   auto *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(10, disk_manager);
   // create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 2, 3);
   GenericKey<8> index_key;

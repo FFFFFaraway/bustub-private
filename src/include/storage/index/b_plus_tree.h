@@ -70,7 +70,7 @@ class BPlusTree {
   auto Split(InternalPage *node, page_id_t page_id) -> InternalPage *;
 
   template <typename N>
-  auto CoalesceOrRedistribute(N *node, std::vector<Page *>&need_delete, Transaction *transaction = nullptr) -> bool;
+  auto CoalesceOrRedistribute(N *node, std::vector<page_id_t> &need_delete, Transaction *transaction = nullptr) -> bool;
 
   void Coalesce(LeafPage *node, LeafPage *sibling_page, InternalPage *parent_page, int idx, int sibling_idx,
                 bool sibling_is_left);

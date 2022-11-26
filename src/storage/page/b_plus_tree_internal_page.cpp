@@ -290,7 +290,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient,
     trans_page->SetParentPageId(recipient->GetPageId());
     buffer_pool_manager->UnpinPage((array_ + i)->second, true);
   }
-  IncreaseSize(-(n - 1));
+  IncreaseSize(-n);
   recipient->IncreaseSize(n - 1);
 }
 

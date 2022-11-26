@@ -12,38 +12,42 @@ namespace bustub {
  * set your own input parameters
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::IndexIterator() : page_(INVALID_PAGE_ID), idx_(0){};
+INDEXITERATOR_TYPE::IndexIterator() = default;
 
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *bpm, page_id_t page, int idx)
-    : page_(page), idx_(idx), bpm_(bpm){};
+INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *bpm, LeafPage *page, int idx)
+    : bpm_(bpm), page_(page), idx_(idx) {}
 
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::~IndexIterator() = default;  // NOLINT
+INDEXITERATOR_TYPE::~IndexIterator() {
+  if (page_) {
+    bpm_->UnpinPage(page_->GetPageId(), false);
+  }
+}  // NOLINT
 
 INDEX_TEMPLATE_ARGUMENTS
-auto INDEXITERATOR_TYPE::IsEnd() -> bool { return page_ == INVALID_PAGE_ID; }
+auto INDEXITERATOR_TYPE::IsEnd() -> bool { return page_ == nullptr; }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::operator*() -> const MappingType & {
-  auto leaf = reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(bpm_->FetchPage(page_));
-  const MappingType &res = leaf->GetItem(idx_);
-  bpm_->UnpinPage(page_, false);
+  const MappingType &res = page_->GetItem(idx_);
   return res;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
-  auto leaf = reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(bpm_->FetchPage(page_));
   idx_++;
-  if (idx_ < leaf->GetSize()) {
-    bpm_->UnpinPage(page_, false);
+  if (idx_ < page_->GetSize()) {
     return *this;
   }
-  auto next = leaf->GetNextPageId();
-  bpm_->UnpinPage(page_, false);
-  page_ = next;
+  auto next_id = page_->GetNextPageId();
+  bpm_->UnpinPage(page_->GetPageId(), false);
   idx_ = 0;
+  if (next_id == INVALID_PAGE_ID) {
+    page_ = nullptr;
+  } else {
+    page_ = reinterpret_cast<LeafPage *>(bpm_->FetchPage(next_id));
+  }
   return *this;
 }
 
